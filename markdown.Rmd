@@ -1,0 +1,149 @@
+# Paper Rank
+## Read Data
+
+Read data and transfer the class of it's date column from factor to date
+```{r readdata, cache=TRUE}
+paperrank <- read.table("activity 2.csv", quote = "",sep = ",", header = TRUE)
+paperrank <- transform(paperrank, X.date. = as.Date(as.character(X.date.),
+                                                    format = "\"%Y-%m-%d\""))
+summary(paperrank)
+```
+
+## First Question: what is mean total number of steps taken per day?
+
+Calculate the total steps each day
+```{r totalstep}
+library(dplyr)
+library(ggplot2)
+paperrank <- tbl_df(paperrank)
+totalstep <- paperrank %>%
+        filter(!is.na(X.steps.)) %>%
+        group_by(X.date.) %>%
+        summarize( totalstep = sum(X.steps.))
+totalstep
+```
+
+Draw the histogram of total steps
+```{r hist, cache=TRUE}
+g <- ggplot(totalstep,aes(totalstep))
+g + geom_histogram()
+```
+
+Calculate the mean step
+```{r mean, cache=TRUE}
+meanstep <- as.numeric(summarize(totalstep, mean = mean(totalstep)))
+meanstep
+```
+
+Calculate the median step
+```{r median, cache=TRUE}
+medianstep <- as.numeric(summarize(totalstep, medain = median(totalstep)))
+medianstep
+```
+
+## Second question: What is the average daily activity pattern?
+
+Make a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days
+```{r averagedaily activity}
+paperrank <- tbl_df(paperrank)
+step <- paperrank %>%
+        mutate(hours = as.integer(X.interval./100),
+               minutes = as.integer(X.interval.%%100)) %>%
+        mutate(hm=paste(hours, minutes, "00",sep=":")) %>%
+        mutate(times = paste(X.date., hm, sep=" ")) %>%
+        select(X.steps., times) %>%
+        transform(dates = as.POSIXlt(times)) %>%
+        select(X.steps.,dates)
+names(step) <- c("steps","dates")
+g <- ggplot(step, aes(dates,steps))
+g + geom_line()
+```
+
+
+## Third question: Imputing missing values
+
+Calculate and report the total number ofrows with missing value
+```{r missing value}
+sum(is.na(paperrank))
+```
+
+Strategy of filling missing values: the NA value equal to the mean for that 5-minute interval
+
+New dataset with missing data filled in:
+```{r newdataset}
+library(dplyr)
+library(ggplot2)
+paperrank <- tbl_df(paperrank)
+intervalmeanstep <- paperrank %>%
+        filter(!is.na(X.steps.)) %>%
+        group_by(X.interval.) %>%
+        summarize( meanstep = mean(X.steps.))
+paperrank2 <- paperrank
+paperrank3 <- paperrank2 %>%
+        filter(is.na(paperrank2$X.steps.))
+paperrank3 <- merge(paperrank3, intervalmeanstep, by = "X.interval.")
+paperrank3 <- paperrank3 %>% 
+        mutate(X.steps. = ceiling(meanstep)) %>%
+        select(X.steps.,X.date.,X.interval.)
+
+paperrank2 <- rbind(paperrank2[!is.na(paperrank2$X.steps.),],paperrank3)
+paperrank2 <- paperrank2 %>% 
+        arrange(X.date.)
+summary(paperrank2)
+```
+
+Plot histogram of the total number of steps taken each day:
+```{r hist2}
+totalstep2 <- paperrank2 %>%
+        group_by(X.date.) %>%
+        summarize( totalstep = sum(X.steps.))
+g <- ggplot(totalstep2,aes(totalstep))
+g + geom_histogram()
+```
+
+Mean value of this:
+```{r mean2}
+as.numeric(summarize(totalstep2, mean = mean(totalstep)))
+```
+
+Median value of this:
+```{r median2}
+as.numeric(summarize(totalstep2, medain = median(totalstep)))
+```
+
+Because the missing data is filled by 5-minute intervals, so the mid part of the histogram increased rapidly. On the other hand, mean and median value changed little.
+
+## Forth question: Are there differences in activity patterns between weekdays and weekends?
+
+divide data set by using two levels: weekday and weekend
+```{r divide}
+library(dplyr)
+paperrank2 <- tbl_df(paperrank2)
+step2 <- paperrank2 %>%
+        mutate(hours = as.integer(X.interval./100),
+              minutes = as.integer(X.interval.%%100)) %>%
+        mutate(hm=paste(hours, minutes, "00",sep=":")) %>%
+        mutate(times = paste(X.date., hm, sep=" ")) %>%
+        select(X.steps., times) %>%
+        transform(dates = as.POSIXlt(times)) %>%
+        select(X.steps.,dates) %>%
+        rename(steps = X.steps.)
+step2 <- mutate(step2, weekday = weekdays(step2$dates))
+step2[step2$weekday %in% 
+              c("星期一","星期二","星期三","星期四","星期五"),]$weekday <- "weekday"
+step2[step2$weekday %in% c("星期六","星期日"),]$weekday <- "weekend"
+summary(step2)
+```
+
+draw the picture
+```{r drawpicture}
+g <- ggplot(step2, aes(dates,steps))
+g + geom_line() + facet_grid(weekday~.)
+```
+
+
+
+
+
+
+
